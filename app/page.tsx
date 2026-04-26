@@ -50,58 +50,15 @@ export default function FacDashboard() {
 
 const fetchSimplifiedNews = async () => {
     try {
-      const res = await fetch(
-        `https://newsapi.org/v2/top-headlines?language=en&pageSize=5&apiKey=${process.env.NEXT_PUBLIC_NEWS_API_KEY}`
-      );
+      // Ask our own secure backend for the news instead of asking NewsAPI directly
+      const res = await fetch("/api/news");
       const data = await res.json();
-      const rawArticles = data.articles || [];
 
-      if (rawArticles.length === 0) return;
-
-      const headlinesPrompt = rawArticles
-        .map((a: any, i: number) => `Story ${i + 1}:\nTitle: ${a.title}\nDetails: ${a.description || "No extra details."}`)
-        .join("\n\n");
-      
-      // 🚀 THE FIX: We are now forcing the AI to return strict JSON data
-      const prompt = `Read these ${rawArticles.length} news stories. 
-      For each story, write a casual 2-sentence summary explaining what happened and why it matters. No boring jargon.
-      
-      You MUST respond with a valid JSON array of strings containing exactly ${rawArticles.length} summaries. Do not include any other text, just the array.
-      Example format: ["summary one", "summary two", "summary three", "summary four", "summary five"]
-      
-      Stories to summarize:
-      ${headlinesPrompt}`;
-
-      try {
-        const chatCompletion = await groq.chat.completions.create({
-          messages: [{ role: "user", content: prompt }],
-          model: "llama-3.1-8b-instant",
-        });
-
-        const textResponse = chatCompletion.choices[0]?.message?.content || "[]";
-        
-        // Sometimes AI adds markdown like ```json ... ```, so we clean it up before parsing
-        const cleanJson = textResponse.replace(/```json/g, "").replace(/```/g, "").trim();
-        const simplifiedTexts = JSON.parse(cleanJson);
-
-        const combinedNews = rawArticles.map((article: any, i: number) => ({
-          source: article.source.name,
-          text: simplifiedTexts[i] || "Summary unavailable. " + article.title,
-          url: article.url,
-        }));
-
-        setNews(combinedNews);
-      } catch (aiError) {
-        console.error("🔍 Groq Error or JSON Parsing Failed:", aiError);
-        // If the AI messes up the JSON, we still show the news headlines safely
-        setNews(rawArticles.map((a: any) => ({
-          source: a.source.name,
-          text: a.title,
-          url: a.url
-        })));
+      if (data.news && data.news.length > 0) {
+        setNews(data.news);
       }
     } catch (err) {
-      console.error("News fetch failed:", err);
+      console.error("Failed to load news from server:", err);
     }
   };
 
